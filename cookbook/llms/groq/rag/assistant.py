@@ -7,6 +7,7 @@ from phi.embedder.openai import OpenAIEmbedder
 from phi.embedder.ollama import OllamaEmbedder
 from phi.vectordb.pgvector import PgVector2
 from phi.storage.assistant.postgres import PgAssistantStorage
+from phi.llm.openai.like import OpenAILike
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
@@ -35,7 +36,8 @@ def get_groq_assistant(
         name="groq_rag_assistant",
         run_id=run_id,
         user_id=user_id,
-        llm=Groq(model=llm_model),
+        # llm=Groq(model=llm_model),
+        llm=OpenAILike(base_url="http://localhost:1234/v1"),
         storage=PgAssistantStorage(table_name="groq_rag_assistant", db_url=db_url),
         knowledge_base=AssistantKnowledge(
             vector_db=PgVector2(

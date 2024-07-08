@@ -12,7 +12,7 @@ def get_article_summarizer(
     return Assistant(
         name="Article Summarizer",
         llm=Groq(model=model),
-        description="You are a Senior NYT Editor and your task is to summarize a newspaper article.",
+        description="You are a Senior Editor and your task is to summarize a newspaper article in Bengali.",
         instructions=[
             "You will be provided with the text from a newspaper article.",
             "Carefully read the article a prepare a thorough report of key facts and details.",
@@ -50,7 +50,7 @@ def get_article_writer(
     return Assistant(
         name="Article Summarizer",
         llm=Groq(model=model),
-        description="You are a Senior NYT Editor and your task is to write a NYT cover story worthy article due tomorrow.",
+        description="You are a Senior Editor and your task is to write a cover story worthy article in Bengali due tomorrow.",
         instructions=[
             "You will be provided with a topic and pre-processed summaries from junior researchers.",
             "Carefully read the provided information and think about the contents",

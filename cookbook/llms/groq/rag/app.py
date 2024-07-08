@@ -4,6 +4,7 @@ import streamlit as st
 from phi.assistant import Assistant
 from phi.document import Document
 from phi.document.reader.pdf import PDFReader
+from phi.document.reader.text import TextReader
 from phi.document.reader.website import WebsiteReader
 from phi.utils.log import logger
 
@@ -26,6 +27,16 @@ def restart_assistant():
         st.session_state["file_uploader_key"] += 1
     st.rerun()
 
+def validate_embedding(embedding, expected_dim):
+    if embedding is None or len(embedding) != expected_dim:
+        raise ValueError(f"Expected {expected_dim} dimensions, but got {len(embedding) if embedding else 0}")
+    return embedding
+
+def generate_embeddings(documents, embedder, expected_dim):
+    for doc in documents:
+        if doc.embedding is None:
+            doc.embedding = embedder.get_embedding(doc.content)
+            validate_embedding(doc.embedding, expected_dim)
 
 def main() -> None:
     # Get LLM model
@@ -61,6 +72,13 @@ def main() -> None:
         st.session_state["rag_assistant"] = rag_assistant
     else:
         rag_assistant = st.session_state["rag_assistant"]
+
+    print(rag_assistant)
+    print("embedder", rag_assistant.knowledge_base.vector_db.embedder)
+
+    # Determine the expected dimensions based on the embeddings model
+    expected_dim = 768 if embeddings_model == "nomic-embed-text" else 1536
+
 
     # Create assistant run (i.e. log to database) and save run_id in session state
     try:
@@ -117,8 +135,18 @@ def main() -> None:
                 if f"{input_url}_scraped" not in st.session_state:
                     scraper = WebsiteReader(max_links=2, max_depth=1)
                     web_documents: List[Document] = scraper.read(input_url)
+                    print(web_documents)
                     if web_documents:
-                        rag_assistant.knowledge_base.load_documents(web_documents, upsert=True)
+                        try:
+                            print("Using rag..")
+                            generate_embeddings(web_documents, rag_assistant.knowledge_base.vector_db.embedder, expected_dim)
+                            for doc in web_documents:
+                                validate_embedding(doc.embedding, 768)
+                            print(web_documents)
+                            print("loading documents")
+                            rag_assistant.knowledge_base.load_documents(web_documents, upsert=True)
+                        except ValueError as e:
+                            st.sidebar.error(f"Embedding error: {e}")
                     else:
                         st.sidebar.error("Could not read website")
                     st.session_state[f"{input_url}_uploaded"] = True
@@ -128,21 +156,36 @@ def main() -> None:
         if "file_uploader_key" not in st.session_state:
             st.session_state["file_uploader_key"] = 100
 
+        # Add PDFs and text files to knowledge base
+        if "file_uploader_key" not in st.session_state:
+            st.session_state["file_uploader_key"] = 100
+
         uploaded_file = st.sidebar.file_uploader(
-            "Add a PDF :page_facing_up:", type="pdf", key=st.session_state["file_uploader_key"]
+            "Add a PDF or TXT file :page_facing_up:", type=["pdf", "txt"], key=st.session_state["file_uploader_key"]
         )
         if uploaded_file is not None:
-            alert = st.sidebar.info("Processing PDF...", icon="🧠")
+            alert = st.sidebar.info("Processing file...", icon="🧠")
             rag_name = uploaded_file.name.split(".")[0]
             if f"{rag_name}_uploaded" not in st.session_state:
-                reader = PDFReader()
+                if uploaded_file.type == "application/pdf":
+                    reader = PDFReader()
+                else:
+                    reader = TextReader()
+
                 rag_documents: List[Document] = reader.read(uploaded_file)
                 if rag_documents:
-                    rag_assistant.knowledge_base.load_documents(rag_documents, upsert=True)
+                    try:
+                        generate_embeddings(rag_documents, rag_assistant.knowledge_base.vector_db.embedder, expected_dim)
+                        for doc in rag_documents:
+                            validate_embedding(doc.embedding, 768)
+                        rag_assistant.knowledge_base.load_documents(rag_documents, upsert=True)
+                    except ValueError as e:
+                        st.sidebar.error(f"Embedding error: {e}")
                 else:
-                    st.sidebar.error("Could not read PDF")
+                    st.sidebar.error("Could not read file")
                 st.session_state[f"{rag_name}_uploaded"] = True
             alert.empty()
+
 
     if rag_assistant.knowledge_base and rag_assistant.knowledge_base.vector_db:
         if st.sidebar.button("Clear Knowledge Base"):

@@ -74,7 +74,7 @@ def main() -> None:
     # Get topic for report
     article_topic = st.text_input(
         ":spiral_calendar_pad: Enter a topic",
-        value="Hashicorp IBM",
+        value="Digital Bangladesh",
     )
     write_article = st.button("Write Article")
     if write_article:
